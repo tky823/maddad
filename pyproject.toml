@@ -1,0 +1,61 @@
+[build-system]
+requires = [
+    "setuptools",
+    "torch",
+]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "maddad"
+authors = [
+    {name = "Takuya Hasumi"},
+]
+description = "Toolkit for beat detection."
+readme = "README.md"
+license = {file = "LICENSE"}
+urls = {url = "https://github.com/tky823/maddad"}
+requires-python = ">=3.10, <4"
+dependencies = [
+    "torch",
+    "torchaudio",
+    "torchcodec; sys_platform != 'darwin' or platform_machine != 'x86_64'",
+    "tensorboard",
+]
+dynamic = [
+    "version",
+]
+
+[project.optional-dependencies]
+dev = [
+    "ruff",
+]
+tests = [
+    "pytest",
+    "pytest-cov",
+]
+
+[tool.setuptools.dynamic]
+version = {attr = "maddad.__version__"}
+
+[tool.setuptools.packages.find]
+include = [
+    "maddad*",
+]
+
+[tool.ruff]
+line-length = 99
+
+[tool.ruff.lint.isort]
+section-order = [
+    "future",
+    "standard-library",
+    "third-party",
+    "first-party",
+    "local-folder",
+]
+
+[tool.pytest.ini_options]
+# to import relative paths
+pythonpath = [
+    "tests",
+]
