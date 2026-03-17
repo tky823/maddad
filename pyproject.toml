@@ -21,6 +21,7 @@ dependencies = [
     "tensorboard",
     "omegaconf",
     "hydra-core",
+    "tqdm",
 ]
 dynamic = [
     "version",
