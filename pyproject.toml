@@ -19,6 +19,8 @@ dependencies = [
     "torch",
     "torchaudio",
     "tensorboard",
+    "omegaconf",
+    "hydra-core",
 ]
 dynamic = [
     "version",
@@ -32,6 +34,10 @@ tests = [
     "pytest",
     "pytest-cov",
 ]
+
+[project.scripts]
+maddad-parse-run-command = "maddad.bin.parse_run_command:main"
+maddad-download-beatthis = "maddad.bin.download_beatthis:main"
 
 [tool.setuptools.dynamic]
 version = {attr = "maddad.__version__"}
