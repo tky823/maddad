@@ -1,8 +1,10 @@
+from typing import Callable, Dict, Optional
+
 import torch
 import torch.nn as nn
+import torchaudio.transforms as aT
 
 from ..functional.segment import segment
-from .melspectrogram import BeatThisMelSpectrogram
 
 
 class BeatThisTransform(nn.Module):
@@ -18,12 +20,6 @@ class BeatThisTransform(nn.Module):
         output = segment(x, chunk_size=self.chunk_size)
 
         return output
-
-
-from typing import Callable, Dict, Optional
-
-import torch
-import torchaudio.transforms as aT
 
 
 class BeatThisMelSpectrogram(aT.MelSpectrogram):
