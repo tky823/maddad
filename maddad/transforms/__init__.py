@@ -1,5 +1,6 @@
-from .melspectrogram import BeatThisMelSpectrogram
+from .beatthis import BeatThisMelSpectrogram, BeatThisTransform
 
 __all__ = [
     "BeatThisMelSpectrogram",
+    "BeatThisTransform",
 ]
