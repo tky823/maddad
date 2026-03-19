@@ -1,4 +1,4 @@
-from typing import Callable, Dict, Optional
+from typing import Callable, Dict, Optional, Tuple
 
 import torch
 import torch.nn as nn
@@ -8,18 +8,19 @@ from ..functional.segment import segment
 
 
 class BeatThisTransform(nn.Module):
-    def __init__(self, chunk_size: int = 1500) -> None:
+    def __init__(self, chunk_size: int = 1500, pad: int = 6) -> None:
         super().__init__()
 
         self.spectrogram = BeatThisMelSpectrogram()
 
         self.chunk_size = chunk_size
+        self.pad = pad
 
-    def forward(self, waveform: torch.Tensor) -> torch.Tensor:
+    def forward(self, waveform: torch.Tensor) -> Tuple[torch.Tensor, int]:
         x = self.spectrogram(waveform)
-        output = segment(x, chunk_size=self.chunk_size)
+        output, last_offset = segment(x, chunk_size=self.chunk_size, pad=self.pad)
 
-        return output
+        return output, last_offset
 
     @property
     def sample_rate(self) -> int:

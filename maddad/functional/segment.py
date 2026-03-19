@@ -1,8 +1,10 @@
+from typing import Tuple
+
 import torch
 import torch.nn.functional as F
 
 
-def segment(input: torch.Tensor, chunk_size: int, pad: int = 6) -> torch.Tensor:
+def segment(input: torch.Tensor, chunk_size: int, pad: int = 6) -> Tuple[torch.Tensor, int]:
     """Segment input into overlapping chunks.
 
     Args:
@@ -11,10 +13,11 @@ def segment(input: torch.Tensor, chunk_size: int, pad: int = 6) -> torch.Tensor:
         pad (int): Amount of padding on each side of sequence. Default: ``6``.
 
     Returns:
-        torch.Tensor: Tensor of shape (num_chunks, *, chunk_size).
+        tuple: Tuple of
+            - torch.Tensor: Tensor of shape (num_chunks, *, chunk_size).
+            - int: Last offset of sequence.
 
     """
-
     *batch_shape, length = input.size()
     hop_size = chunk_size - 2 * pad
 
@@ -30,5 +33,8 @@ def segment(input: torch.Tensor, chunk_size: int, pad: int = 6) -> torch.Tensor:
         _x = F.pad(_x, (0, pad))
         _x = _x.unsqueeze(dim=0)
         output = torch.cat([output, _x], dim=0)
+        last_offset = hop_size - length % hop_size
+    else:
+        last_offset = 0
 
-    return output
+    return output, last_offset
