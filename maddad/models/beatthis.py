@@ -1,8 +1,11 @@
-from typing import Tuple, Union
+import os
+from typing import Dict, OrderedDict, Tuple, Union
 
+import hydra
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from omegaconf import OmegaConf
 from torch.nn.modules.utils import _pair
 
 from ..modules.beatthis import (
@@ -13,6 +16,7 @@ from ..modules.beatthis import (
     Projector,
     RoFormerEncoderLayer,
 )
+from ..utils._github import download_file_from_github_release
 
 
 class BeatThis(nn.Module):
@@ -91,3 +95,56 @@ class BeatThis(nn.Module):
         head = BeatDownbeatHead(backbone_d_model)
 
         return cls(encoder, backbone, head)
+
+    @classmethod
+    def build_from_pretrained(
+        cls, pretrained_model_name_or_path: str = "official_beatthis"
+    ) -> "BeatThis":
+
+        pretrained_model_configs = _create_pretrained_beatthis_configs()
+
+        if os.path.exists(pretrained_model_name_or_path):
+            state_dict = torch.load(
+                pretrained_model_name_or_path,
+                map_location=lambda storage, loc: storage,
+                weights_only=True,
+            )
+            model_state_dict: OrderedDict = state_dict["model"]
+            resolved_config = state_dict["resolved_config"]
+            resolved_config = OmegaConf.create(resolved_config)
+            pretrained_model_config = resolved_config.model
+            model: BeatThis = hydra.utils.instantiate(pretrained_model_config)
+            model.load_state_dict(model_state_dict)
+
+            return model
+        elif pretrained_model_name_or_path in pretrained_model_configs:
+            config = pretrained_model_configs[pretrained_model_name_or_path]
+            url = config["url"]
+            path = config["path"]
+            download_file_from_github_release(url, path=path)
+            model = cls.build_from_pretrained(path)
+
+            return model
+        else:
+            raise FileNotFoundError(f"{pretrained_model_name_or_path} does not exist.")
+
+
+def _create_pretrained_beatthis_configs() -> Dict[str, Dict[str, str]]:
+    """Create pretrained_model_configs without circular import error."""
+
+    from ..utils import model_cache_dir
+
+    pretrained_model_configs = {
+        "official_beatthis": {
+            "url": "https://github.com/tky823/maddad/releases/download/v0.0.0/official_beatthis.pth",  # noqa: E501
+            "path": os.path.join(
+                model_cache_dir,
+                "BeatThis",
+                "5756c850",
+                "official_beatthis.pth",
+            ),
+            "sha256": "5756c850d9e4fc7aa8c81eb8e18ca3f341c369fcbaa255dadf3a623d8546683b",
+        },
+    }
+
+    return pretrained_model_configs
