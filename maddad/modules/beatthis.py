@@ -12,6 +12,22 @@ from .activation import RotaryPositionalMultiheadAttention as _RotaryPositionalM
 from .positional_encoding import RotaryPositionalEmbedding
 
 
+class Encoder(nn.Module):
+    def __init__(self, frontend: nn.Module, backbone: nn.Module, proj: nn.Module) -> None:
+        super().__init__()
+
+        self.frontend = frontend
+        self.backbone = backbone
+        self.proj = proj
+
+    def forward(self, input: torch.Tensor) -> torch.Tensor:
+        x = self.frontend(input)
+        x = self.backbone(x)
+        output = self.proj(x)
+
+        return output
+
+
 class Frontend(nn.Module):
     def __init__(
         self,
@@ -113,6 +129,21 @@ class DualPathRoFormerEncoder(nn.Module):
             x = layer(x)
 
         output = x
+
+        return output
+
+
+class Projector(nn.Module):
+    def __init__(self, in_channels: int, out_channels: int) -> None:
+        super().__init__()
+
+        self.linear = nn.Linear(in_channels, out_channels)
+
+    def forward(self, input: torch.Tensor) -> torch.Tensor:
+        batch_size, *_, length = input.size()
+        x = input.view(batch_size, -1, length)
+        x = x.permute(0, 2, 1)
+        output = self.linear(x)
 
         return output
 
