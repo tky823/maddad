@@ -92,9 +92,28 @@ class MinimalBeatDecoder(nn.Module):
         self.merge_interval = merge_interval
 
     def forward(self, logit: torch.Tensor) -> torch.Tensor:
+        """Decode logit into beat indices.
+
+        Args:
+            logit (torch.Tensor): Logit tensor of shape (1, num_frames).
+
+        Returns:
+            torch.Tensor: Beat indices of shape (1, num_beats).
+
+        .. note::
+
+            Only batch_size=1 is supported for now.
+
+        .. note::
+
+            Due to averaging, output beat indices may not be integers.
+
+        """
         pool_size = self.pool_size
         stride = 1
         padding = pool_size // 2
+
+        assert logit.dim() == 2 and logit.size(0) == 1, "Only batch_size=1 is supported for now."
 
         pooled_logit = F.max_pool1d(
             logit,
@@ -116,7 +135,7 @@ class MinimalBeatDecoder(nn.Module):
         count_peaks = torch.zeros((num_sections,), dtype=torch.long, device=peaks.device)
         sum_peaks.scatter_add_(0, sections, peaks)
         count_peaks.scatter_add_(0, sections, torch.ones_like(peaks, dtype=torch.long))
-        peaks = sum_peaks / count_peaks
-        output = peaks.long()
+        output = sum_peaks / count_peaks
+        output = output.unsqueeze(dim=0)
 
         return output
