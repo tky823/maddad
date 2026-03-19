@@ -2,6 +2,7 @@ from typing import Callable, Dict, Optional, Tuple
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 import torchaudio.transforms as aT
 
 from ..functional.segment import segment
@@ -79,3 +80,43 @@ class BeatThisMelSpectrogram(aT.MelSpectrogram):
         spec = super().forward(waveform)
 
         return torch.log1p(self.scale * spec)
+
+
+class MinimalBeatDecoder(nn.Module):
+    def __init__(self, pool_size: int = 7, merge_interval: int = 1) -> None:
+        super().__init__()
+
+        assert pool_size % 2 == 1, "pool_size must be odd"
+
+        self.pool_size = pool_size
+        self.merge_interval = merge_interval
+
+    def forward(self, logit: torch.Tensor) -> torch.Tensor:
+        pool_size = self.pool_size
+        stride = 1
+        padding = pool_size // 2
+
+        pooled_logit = F.max_pool1d(
+            logit,
+            kernel_size=pool_size,
+            stride=stride,
+            padding=padding,
+        )
+        logit = logit.squeeze(dim=0)
+        pooled_logit = pooled_logit.squeeze(dim=0)
+        pooled_logit = pooled_logit.masked_fill(logit != pooled_logit, -float("inf"))
+        peaks = torch.nonzero(pooled_logit > 0, as_tuple=False)
+        peaks = peaks.squeeze(dim=-1)
+        peak_intervals = torch.diff(peaks, dim=-1)
+        is_new_section = F.pad(peak_intervals > self.merge_interval, (1, 0), value=True)
+        sections = torch.cumsum(is_new_section.long(), dim=-1) - 1
+        num_sections = sections[-1]
+        num_sections = num_sections.item() + 1
+        sum_peaks = torch.zeros((num_sections,), dtype=torch.long, device=peaks.device)
+        count_peaks = torch.zeros((num_sections,), dtype=torch.long, device=peaks.device)
+        sum_peaks.scatter_add_(0, sections, peaks)
+        count_peaks.scatter_add_(0, sections, torch.ones_like(peaks, dtype=torch.long))
+        peaks = sum_peaks / count_peaks
+        output = peaks.long()
+
+        return output
