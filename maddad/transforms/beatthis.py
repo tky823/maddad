@@ -26,6 +26,10 @@ class BeatThisTransform(nn.Module):
     def sample_rate(self) -> int:
         return self.spectrogram.sample_rate
 
+    @property
+    def hop_length(self) -> int:
+        return self.spectrogram.hop_length
+
 
 class BeatThisMelSpectrogram(aT.MelSpectrogram):
     def __init__(
