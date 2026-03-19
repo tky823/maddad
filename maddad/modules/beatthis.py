@@ -3,11 +3,50 @@ from typing import Optional, Tuple
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from torch.nn.common_types import _size_2_t
 from torch.nn.modules.activation import NonDynamicallyQuantizableLinear
+from torch.nn.modules.utils import _pair
 
 from ..functional.activation import scaled_dot_product_attention
 from .activation import RotaryPositionalMultiheadAttention as _RotaryPositionalMultiheadAttention
 from .positional_encoding import RotaryPositionalEmbedding
+
+
+class Frontend(nn.Module):
+    def __init__(
+        self,
+        in_channels: int,
+        out_channels: int,
+        kernel_size: _size_2_t = (4, 3),
+        stride: _size_2_t = (4, 1),
+        bias: bool = False,
+    ) -> None:
+        super().__init__()
+
+        kernel_size = _pair(kernel_size)
+        stride = _pair(stride)
+        padding = (kernel_size[0] - stride[0]) // 2, (kernel_size[1] - stride[1]) // 2
+
+        self.norm1 = nn.BatchNorm1d(in_channels)
+        self.conv2d = nn.Conv2d(
+            1,
+            out_channels,
+            kernel_size=kernel_size,
+            stride=stride,
+            padding=padding,
+            bias=bias,
+        )
+        self.norm2 = nn.BatchNorm2d(out_channels)
+        self.activation = nn.GELU()
+
+    def forward(self, input: torch.Tensor) -> torch.Tensor:
+        x = self.norm1(input)
+        x = x.unsqueeze(dim=-3)
+        x = self.conv2d(x)
+        x = self.norm2(x)
+        output = self.activation(x)
+
+        return output
 
 
 class RotaryPositionalMultiheadAttention(_RotaryPositionalMultiheadAttention):
