@@ -28,6 +28,18 @@ class Encoder(nn.Module):
         return output
 
 
+class BeatDownbeatHead(nn.Linear):
+    def __init__(self, in_channels: int) -> None:
+        super().__init__(in_channels, 2)
+
+    def forward(self, input: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+        x = super().forward(input)
+        beat_output, downbeat_output = torch.unbind(x, dim=-1)
+        beat_output = beat_output + downbeat_output
+
+        return beat_output, downbeat_output
+
+
 class Frontend(nn.Module):
     def __init__(
         self,
