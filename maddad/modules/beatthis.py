@@ -49,6 +49,173 @@ class Frontend(nn.Module):
         return output
 
 
+class DualPathRoFormerEncoder(nn.Module):
+    def __init__(
+        self,
+        in_channels: int,
+        dim_feedforward: int = 2048,
+        num_layers: int = 3,
+        dropout: float = 0.1,
+        activation: Union[str, Callable[[torch.Tensor], torch.Tensor]] = F.relu,
+        kernel_size: _size_2_t = (2, 3),
+        stride: _size_2_t = (2, 1),
+        layer_norm_eps: float = 1e-5,
+        rope_base: int = 10000,
+        share_heads: bool = True,
+        batch_first: bool = False,
+        norm_first: bool = False,
+        bias: bool = True,
+        device: torch.device = None,
+        dtype: torch.dtype = None,
+    ) -> None:
+        factory_kwargs = {
+            "device": device,
+            "dtype": dtype,
+        }
+
+        super().__init__()
+
+        nhead = 1
+
+        layers = []
+
+        for _ in range(num_layers):
+            layers.append(
+                DualPathRoFormerEncoderLayer(
+                    in_channels,
+                    2 * in_channels,
+                    nhead,
+                    dim_feedforward=dim_feedforward,
+                    dropout=dropout,
+                    activation=activation,
+                    kernel_size=kernel_size,
+                    stride=stride,
+                    layer_norm_eps=layer_norm_eps,
+                    rope_base=rope_base,
+                    share_heads=share_heads,
+                    batch_first=batch_first,
+                    norm_first=norm_first,
+                    bias=bias,
+                    **factory_kwargs,
+                )
+            )
+
+            in_channels *= 2
+            nhead *= 2
+            dim_feedforward *= 2
+
+        self.layers = nn.ModuleList(layers)
+
+    def forward(self, input: torch.Tensor) -> torch.Tensor:
+        x = input
+
+        for layer in self.layers:
+            x = layer(x)
+
+        output = x
+
+        return output
+
+
+class DualPathRoFormerEncoderLayer(nn.Module):
+    def __init__(
+        self,
+        in_channels: int,
+        out_channels: int,
+        nhead: int,
+        dim_feedforward: int = 2048,
+        dropout: float = 0.1,
+        activation: Union[str, Callable[[torch.Tensor], torch.Tensor]] = F.relu,
+        kernel_size: _size_2_t = (2, 3),
+        stride: _size_2_t = (2, 1),
+        layer_norm_eps: float = 1e-5,
+        rope_base: int = 10000,
+        share_heads: bool = True,
+        batch_first: bool = False,
+        norm_first: bool = False,
+        bias: bool = True,
+        device: torch.device = None,
+        dtype: torch.dtype = None,
+    ) -> None:
+        factory_kwargs = {
+            "device": device,
+            "dtype": dtype,
+        }
+
+        super().__init__()
+
+        self.intra_roformer = RoFormerEncoderLayer(
+            in_channels,
+            nhead,
+            dim_feedforward=dim_feedforward,
+            dropout=dropout,
+            activation=activation,
+            layer_norm_eps=layer_norm_eps,
+            rope_base=rope_base,
+            share_heads=share_heads,
+            batch_first=batch_first,
+            norm_first=norm_first,
+            bias=bias,
+            **factory_kwargs,
+        )
+        self.inter_roformer = RoFormerEncoderLayer(
+            in_channels,
+            nhead,
+            dim_feedforward=dim_feedforward,
+            dropout=dropout,
+            activation=activation,
+            layer_norm_eps=layer_norm_eps,
+            rope_base=rope_base,
+            share_heads=share_heads,
+            batch_first=batch_first,
+            norm_first=norm_first,
+            bias=bias,
+            **factory_kwargs,
+        )
+
+        padding = (kernel_size[0] - stride[0]) // 2, (kernel_size[1] - stride[1]) // 2
+        self.conv2d = nn.Conv2d(
+            in_channels,
+            out_channels,
+            kernel_size=kernel_size,
+            stride=stride,
+            padding=padding,
+            bias=False,
+            **factory_kwargs,
+        )
+
+        self.norm = nn.BatchNorm2d(out_channels, eps=layer_norm_eps, **factory_kwargs)
+
+        if isinstance(activation, str):
+            activation = get_activation(activation)
+
+        if activation is F.relu or isinstance(activation, nn.ReLU):
+            self.activation_relu_or_gelu = 1
+        elif activation is F.gelu or isinstance(activation, nn.GELU):
+            self.activation_relu_or_gelu = 2
+        else:
+            self.activation_relu_or_gelu = 0
+
+        self.activation = activation
+
+    def forward(self, input: torch.Tensor) -> torch.Tensor:
+        batch_size, in_channels, num_bins, num_frames = input.size()
+        x = input.permute(0, 3, 2, 1).contiguous()
+        x = x.view(batch_size * num_frames, num_bins, in_channels)
+        x = self.intra_roformer(x)
+        x = x.view(batch_size, num_frames, num_bins, in_channels)
+        x = x.permute(0, 2, 1, 3).contiguous()
+        x = x.view(batch_size * num_bins, num_frames, in_channels)
+        x = self.inter_roformer(x)
+        x = x.view(batch_size, num_bins, num_frames, in_channels)
+        x = x.permute(0, 3, 1, 2).contiguous()
+        x = self.conv2d(x)
+        x = self.norm(x)
+        output = self.activation(x)
+
+        return output
+
+
 class RoFormerEncoderLayer(nn.Module):
     """Encoder layer of RoFormer for BeatThis."""
 
@@ -61,9 +228,6 @@ class RoFormerEncoderLayer(nn.Module):
         activation: Union[str, Callable[[torch.Tensor], torch.Tensor]] = F.relu,
         layer_norm_eps: float = 1e-5,
         rope_base: int = 10000,
-        qdim: Optional[int] = None,
-        kdim: Optional[int] = None,
-        vdim: Optional[int] = None,
         share_heads: bool = True,
         batch_first: bool = False,
         norm_first: bool = False,
@@ -83,9 +247,6 @@ class RoFormerEncoderLayer(nn.Module):
             nhead,
             dropout=dropout,
             bias=bias,
-            qdim=qdim,
-            kdim=kdim,
-            vdim=vdim,
             base=rope_base,
             share_heads=share_heads,
             batch_first=batch_first,
@@ -268,9 +429,11 @@ class RotaryPositionalMultiheadAttention(_RotaryPositionalMultiheadAttention):
         else:
             self.register_parameter("in_proj_bias", None)
 
-        self.gate = nn.Linear(qdim, num_heads, bias=True, **factory_kwargs)  # bias is always True
+        self.gate = nn.Linear(
+            embed_dim, num_heads, bias=True, **factory_kwargs
+        )  # bias is always True
         self.out_proj = NonDynamicallyQuantizableLinear(
-            embed_dim, qdim, bias=bias, **factory_kwargs
+            embed_dim, embed_dim, bias=bias, **factory_kwargs
         )
 
         if add_bias_kv:
