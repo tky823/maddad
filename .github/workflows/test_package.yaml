@@ -1,0 +1,42 @@
+name: Tests for package on multiple OS
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  test-ubuntu:
+    uses: ./.github/workflows/test_package_main.yaml
+    with:
+      os: "ubuntu-latest"
+      python-version: "3.13"
+      torch-version: "2.10.0"
+    secrets: inherit
+
+  test-macos-15-intel:
+    uses: ./.github/workflows/test_package_main.yaml
+    with:
+      os: "macos-15-intel"
+      python-version: "3.13"
+      torch-version: "2.10.0"
+    secrets: inherit
+
+  test-macos-latest:
+    uses: ./.github/workflows/test_package_main.yaml
+    with:
+      os: "macos-latest"
+      python-version: "3.13"
+      torch-version: "2.10.0"
+    secrets: inherit
+
+  test-windows-latest:
+    uses: ./.github/workflows/test_package_main.yaml
+    with:
+      os: "windows-latest"
+      python-version: "3.13"
+      torch-version: "2.7.0"
+    secrets: inherit
