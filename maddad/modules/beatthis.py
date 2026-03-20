@@ -283,6 +283,13 @@ class RoFormerEncoderLayer(nn.Module):
             "dtype": dtype,
         }
 
+        if hasattr(nn, "RMSNorm"):
+            rms_norm_cls = nn.RMSNorm
+        else:
+            from .normalization import RMSNorm
+
+            rms_norm_cls = RMSNorm
+
         super().__init__()
 
         self.self_attn = RotaryPositionalMultiheadAttention(
@@ -301,8 +308,8 @@ class RoFormerEncoderLayer(nn.Module):
         self.linear2 = nn.Linear(dim_feedforward, d_model, bias=True, **factory_kwargs)
 
         self.norm_first = norm_first
-        self.norm1 = nn.RMSNorm(d_model, eps=layer_norm_eps, **factory_kwargs)
-        self.norm2 = nn.RMSNorm(d_model, eps=layer_norm_eps, **factory_kwargs)
+        self.norm1 = rms_norm_cls(d_model, eps=layer_norm_eps, **factory_kwargs)
+        self.norm2 = rms_norm_cls(d_model, eps=layer_norm_eps, **factory_kwargs)
         self.dropout1 = nn.Dropout(dropout)
         self.dropout2 = nn.Dropout(dropout)
 

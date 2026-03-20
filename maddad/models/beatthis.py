@@ -38,6 +38,13 @@ class BeatThis(nn.Module):
 
     @classmethod
     def build_from_config(cls, version: str = "default") -> "BeatThis":
+        if hasattr(nn, "RMSNorm"):
+            rms_norm_cls = nn.RMSNorm
+        else:
+            from ..modules.normalization import RMSNorm
+
+            rms_norm_cls = RMSNorm
+
         if version == "default":
             num_bins = 128
 
@@ -90,7 +97,7 @@ class BeatThis(nn.Module):
             norm_first=norm_first,
             bias=bias,
         )
-        backbone_norm = nn.RMSNorm(backbone_d_model, eps=layer_norm_eps)
+        backbone_norm = rms_norm_cls(backbone_d_model, eps=layer_norm_eps)
         backbone = nn.TransformerEncoder(layer, num_layers=num_backbone_layers, norm=backbone_norm)
         head = BeatDownbeatHead(backbone_d_model)
 
