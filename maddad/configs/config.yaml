@@ -1,0 +1,9 @@
+defaults:
+  - system: default
+  - _self_
+
+hydra:
+  job:
+    chdir: false
+  run:
+    dir: "./log/${now:%Y%m%d-%H%M%S}"
