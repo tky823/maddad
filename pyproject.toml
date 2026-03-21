@@ -48,6 +48,12 @@ include = [
     "maddad*",
 ]
 
+[tool.setuptools.package-data]
+# to include config of drivers
+maddad = [
+    "*yaml",
+]
+
 [tool.ruff]
 line-length = 99
 
