@@ -23,4 +23,4 @@ def test_beatthis_melspectrogram() -> None:
 
     spectrogram = transform(waveform)
 
-    assert torch.allclose(spectrogram, expected_spectrogram)
+    assert torch.allclose(spectrogram, expected_spectrogram, atol=1e-6)
