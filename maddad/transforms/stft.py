@@ -12,6 +12,9 @@ class ShortTimeFourierTransform(nn.Module):
         n_fft: int = 2048,
         hop_length: int = 441,
         window: Optional[torch.Tensor] = torch.hann_window,
+        center: bool = True,
+        pad_mode: str = "constant",
+        normalized: bool = False,
     ) -> None:
         """STFT class compatible with madmom.
 
@@ -38,6 +41,9 @@ class ShortTimeFourierTransform(nn.Module):
 
         self.n_fft = n_fft
         self.hop_length = hop_length
+        self.center = center
+        self.pad_mode = pad_mode
+        self.normalized = normalized
 
         self.register_buffer("window", _window)
 
@@ -52,7 +58,15 @@ class ShortTimeFourierTransform(nn.Module):
                 if ``include_nyquist`` is ``True``, else n_fft // 2.
 
         """
-        return stft(input, n_fft=self.n_fft, hop_length=self.hop_length, window=self.window)
+        return stft(
+            input,
+            n_fft=self.n_fft,
+            hop_length=self.hop_length,
+            window=self.window,
+            center=self.center,
+            pad_mode=self.pad_mode,
+            normalized=self.normalized,
+        )
 
 
 class STFT(ShortTimeFourierTransform):

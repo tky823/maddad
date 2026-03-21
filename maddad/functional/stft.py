@@ -9,6 +9,9 @@ def stft(
     n_fft: int = 2048,
     hop_length: int = 441,
     window: torch.Tensor = torch.hann_window,
+    center: bool = True,
+    pad_mode: str = "constant",
+    normalized: bool = False,
     include_nyquist: bool = False,
 ) -> torch.Tensor:
     """Wrapper function of torch.stft compatible with madmom.
@@ -26,6 +29,9 @@ def stft(
             if ``include_nyquist`` is ``True``, else n_fft // 2.
 
     """
+    assert center, "center=False is not supported."
+    assert not normalized, "normalized=True is not supported."
+
     if window is None:
         _window = window
     elif isinstance(window, torch.Tensor):
@@ -42,7 +48,7 @@ def stft(
     padding = (num_frames - 1) * hop_length + n_fft - num_samples
     left_padding = n_fft // 2
     right_padding = padding - left_padding
-    x = F.pad(input, (left_padding, right_padding))
+    x = F.pad(input, (left_padding, right_padding), mode=pad_mode)
 
     output = torch.stft(
         x,
@@ -50,9 +56,9 @@ def stft(
         hop_length=hop_length,
         win_length=n_fft,
         window=_window,
-        normalized=False,
-        onesided=True,
         center=False,
+        normalized=normalized,
+        onesided=True,
         return_complex=True,
     )
 
