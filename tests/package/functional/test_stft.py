@@ -24,4 +24,9 @@ def test_stft() -> None:
 
     output = stft(waveform, n_fft=frame_size, hop_length=hop_size)
 
-    assert torch.allclose(output, expected_output, atol=1e-5)
+    loss = torch.abs(output - expected_output)
+    assert torch.allclose(output, expected_output, atol=1e-5), (
+        loss.mean(),
+        loss.min(),
+        loss.max(),
+    )
