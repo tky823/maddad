@@ -79,12 +79,17 @@ class BeatThisPipeline(BeatPipeline):
                     f"Expected sample rate {sample_rate}, but got {_sample_rate}."
                 )
 
+            waveform = waveform.mean(dim=0)  # Channel dimension should be removed.
             sample_rate = _sample_rate
         else:
             waveform = input
 
             if sample_rate is None:
                 raise ValueError("Sample rate must be provided for tensor input.")
+
+            assert waveform.dim() == 1, (
+                f"Shape of waveform should be (num_samples,), but got {waveform.size()}."
+            )
 
         return self.forward(waveform, sample_rate=sample_rate)
 
