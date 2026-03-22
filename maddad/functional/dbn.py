@@ -16,14 +16,19 @@ def decode_beat_peaks_by_viterbi(
     max_bpm: Optional[float] = 215.0,
     bpms: Optional[torch.Tensor] = None,
     weight: float = 100,
-) -> None:
+) -> torch.Tensor:
     """Search for best beat path through state space using a dynamic Bayesian network (DBN) approach.
 
     Args:
-        observation (torch.Tensor): observation of shape (batch_size, num_frames).
+        logit (torch.Tensor): Logit of shape (batch_size, num_frames).
+        frame_rate (int): Number of frames per second.
+        min_bpm (float, optional): Minimum BPM. Defaults to 55.0.
+        max_bpm (float, optional): Maximum BPM. Defaults to 215.0.
+        bpms (torch.Tensor, optional): BPMs to consider. If provided, min_bpm and max_bpm are ignored. Defaults to None.
+        weight (float, optional): Weight for transition probability. Defaults to ``100``.
 
     Returns:
-        torch.Tensor: Section indices of shape (batch_size, num_peaks).
+        torch.Tensor: Section indices of shape (batch_size, num_peaks). ``-1`` indicates padding.
 
     """
     logit = logit.cpu()
@@ -77,12 +82,18 @@ def _decode_beat_peaks_by_viterbi(
     """Search for best beat path through the state space using a dynamic Bayesian network (DBN) approach.
 
     Args:
-        observation (torch.Tensor): observation of shape (batch_size, num_frames).
+        logit (torch.Tensor): Logit of shape (batch_size, num_frames).
+        fpbs (torch.Tensor): Frames per beat to assume.
+        log_transition_prob (torch.Tensor, optional): Log transition probability of shape (num_fpbs, num_fpbs). \
+            If not provided, it will be computed from fpbs based on official implementation.
 
     Returns:
         torch.Tensor: Section indices of shape (batch_size, num_frames).
 
     """
+    if fpbs is None:
+        raise ValueError("fpbs must be provided.")
+
     if log_transition_prob is None:
         weight = 100
         ratio = torch.abs(fpbs / fpbs.unsqueeze(dim=-1) - 1)
