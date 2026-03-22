@@ -1,0 +1,41 @@
+from typing import List
+
+import torch
+import torch.nn as nn
+
+from ..functional.dbn import decode_beat_peaks_by_viterbi
+
+
+class DBNBeatDecoder(nn.Module):
+    def __init__(
+        self,
+        frame_rate: int,
+        *,
+        min_bpm: float = 55.0,
+        max_bpm: float = 215.0,
+        bpms: List[float] = None,
+    ) -> None:
+        super().__init__()
+
+        self.frame_rate = frame_rate
+        self.min_bpm = min_bpm
+        self.max_bpm = max_bpm
+        self.bpms = bpms
+
+    def forward(self, logit: torch.Tensor) -> torch.Tensor:
+        """Decode logit into beat indices.
+
+        Args:
+            logit (torch.Tensor): Logit tensor of shape (batch_size, num_frames).
+
+        Returns:
+            torch.Tensor: Beat indices of shape (batch_size, num_beats).
+
+        """
+        return decode_beat_peaks_by_viterbi(
+            logit=logit,
+            frame_rate=self.frame_rate,
+            min_bpm=self.min_bpm,
+            max_bpm=self.max_bpm,
+            bpms=self.bpms,
+        )
