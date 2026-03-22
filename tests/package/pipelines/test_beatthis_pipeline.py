@@ -31,6 +31,27 @@ def test_beatthis_pipeline(audio_path: str) -> None:
     torch.allclose(beat, expected_beat, atol=1e-6)
 
 
+def test_beatthis_pipeline_with_dbn(audio_path: str) -> None:
+    # TODO: regression test
+    waveform, sample_rate = torchaudio.load(audio_path)
+
+    assert sample_rate == 22050
+
+    pipeline = BeatThisPipeline.build_from_pretrained(
+        "official_beatthis",
+        decoder="dbn",
+    )
+
+    waveform = waveform.mean(dim=0)
+    output = pipeline(waveform, sample_rate=sample_rate)
+
+    assert set(output.keys()) == {"beat"}
+
+    beat = output["beat"]
+
+    assert beat.dim() == 1
+
+
 @pytest.fixture
 def audio_path() -> str:
     url = "https://github.com/tky823/maddad/releases/download/v0.0.0/little-fugue.mp3"
