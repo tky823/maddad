@@ -11,6 +11,7 @@ from omegaconf import OmegaConf
 
 from ...models.beatthis import BeatThis
 from ...transforms import BeatThisTransform
+from ...transforms.beat import DBNBeatDecoder
 from ...transforms.beatthis import MinimalBeatDecoder
 from .base import BeatPipeline
 
@@ -19,10 +20,32 @@ class BeatThisPipeline(BeatPipeline):
     def __init__(
         self,
         model: nn.Module,
-        decoder: Optional[nn.Module] = None,
+        transform: Optional[nn.Module] = None,
+        decoder: Optional[Union[nn.Module, str]] = None,
         chunking: bool = True,
         device: Optional[torch.device] = None,
     ) -> None:
+        if transform is None:
+            transform = BeatThisTransform()
+        elif not isinstance(transform, BeatThisTransform):
+            warnings.warn(
+                f"{type(transform)} is not supported, which may cause unexpected behavior.",
+                UserWarning,
+            )
+
+        if decoder is None:
+            decoder = MinimalBeatDecoder()
+        elif isinstance(decoder, str):
+            if decoder == "minimal":
+                decoder = MinimalBeatDecoder()
+            elif decoder == "dbn":
+                frame_rate = int(transform.sample_rate / transform.hop_length)
+                decoder = DBNBeatDecoder(frame_rate=frame_rate)
+            else:
+                raise ValueError(f"Unsupported decoder {decoder}.")
+        else:
+            raise ValueError(f"Unsupported decoder type {type(decoder)}.")
+
         if device is None:
             if torch.cuda.is_available():
                 device = torch.device("cuda")
@@ -31,10 +54,7 @@ class BeatThisPipeline(BeatPipeline):
             else:
                 device = torch.device("cpu")
 
-        if decoder is None:
-            decoder = MinimalBeatDecoder()
-
-        self.transform = BeatThisTransform()
+        self.transform = transform
         self.model = model
         self.decoder = decoder
         self.chunking = chunking
@@ -116,10 +136,10 @@ class BeatThisPipeline(BeatPipeline):
         peaks = self.decoder(logit)
         peaks = peaks.squeeze(dim=0)
 
-        frame_rate = self.transform.hop_length / self.transform.sample_rate
+        frame_rate = self.transform.sample_rate / self.transform.hop_length
 
         output = {
-            "beat": peaks * frame_rate,
+            "beat": peaks / frame_rate,
         }
 
         return output
