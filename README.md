@@ -17,3 +17,7 @@ git clone https://github.com/tky823/maddad.git
 cd maddad
 pip install -e .
 ```
+
+## License
+
+- CC BY-NC 4.0
