@@ -32,6 +32,7 @@ def decode_beat_peaks_by_viterbi(
         torch.Tensor: Section indices of shape (batch_size, num_peaks). ``-1`` indicates padding.
 
     """
+    device = logit.device
     logit = logit.cpu()
 
     if bpms is None:
@@ -69,6 +70,7 @@ def decode_beat_peaks_by_viterbi(
         peak_indices.append(_peak_indices)
 
     peak_indices = nn.utils.rnn.pad_sequence(peak_indices, batch_first=True, padding_value=-1)
+    peak_indices = peak_indices.to(device)
 
     return peak_indices
 
