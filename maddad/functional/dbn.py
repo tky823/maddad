@@ -22,9 +22,10 @@ def decode_beat_peaks_by_viterbi(
     Args:
         logit (torch.Tensor): Logit of shape (batch_size, num_frames).
         frame_rate (int): Number of frames per second.
-        min_bpm (float, optional): Minimum BPM. Defaults to 55.0.
-        max_bpm (float, optional): Maximum BPM. Defaults to 215.0.
-        bpms (torch.Tensor, optional): BPMs to consider. If provided, min_bpm and max_bpm are ignored. Defaults to None.
+        min_bpm (float, optional): Minimum BPM. Defaults to ``55.0``.
+        max_bpm (float, optional): Maximum BPM. Defaults to ``215.0``.
+        bpms (torch.Tensor, optional): BPMs to consider. If provided, min_bpm and max_bpm \
+            are ignored. Defaults to ``None``.
         weight (float, optional): Weight for transition probability. Defaults to ``100``.
 
     Returns:
