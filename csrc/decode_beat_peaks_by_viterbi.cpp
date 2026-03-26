@@ -14,13 +14,13 @@ namespace
         const float *logit_ptr,
         float *log_prob_ptr,
         int64_t *best_prev_ptr,
-        int64_t *binarized_peaks_ptr,
+        int8_t *binarized_peaks_ptr,
         int64_t num_frames,
         int64_t num_states,
         int64_t num_fpbs,
         const int64_t *offsets_ptr,
         const int64_t *fpbs_ptr,
-        const float *log_trans_ptr)
+        const float *log_transition_prob_ptr)
     {
         float inf = std::numeric_limits<float>::infinity();
 
@@ -53,8 +53,8 @@ namespace
                     int64_t prev_fpb_size = fpbs_ptr[prev_fpb_index];
                     int64_t prev_state_idx = prev_offset + prev_fpb_size - 1;
 
-                    float trans_prob = log_trans_ptr[prev_fpb_index * num_fpbs + fpb_index];
-                    float prob = _prev_log_prob_ptr[prev_state_idx] + trans_prob;
+                    float _log_transition_prob = log_transition_prob_ptr[prev_fpb_index * num_fpbs + fpb_index];
+                    float prob = _prev_log_prob_ptr[prev_state_idx] + _log_transition_prob;
 
                     if (prob > best_log_prob)
                     {
@@ -90,7 +90,6 @@ namespace
             }
         }
 
-        std::vector<int64_t> peaks;
         for (int64_t frame_index = num_frames - 1; frame_index >= 0; frame_index--)
         {
             bool is_offset = false;
@@ -106,7 +105,6 @@ namespace
 
             if (is_offset)
             {
-                peaks.push_back(frame_index);
                 binarized_peaks_ptr[frame_index] = 1;
             }
 
@@ -131,6 +129,7 @@ namespace maddad
         int64_t num_threads = torch::get_num_threads();
         int64_t grain_size = std::ceil((batch_size - 1.0) / num_threads) + 1;
 
+        torch::TensorOptions int8ptions = torch::TensorOptions().dtype(torch::kInt8).device(logit.device());
         torch::TensorOptions int64options = torch::TensorOptions().dtype(torch::kInt64).device(logit.device());
         torch::TensorOptions float32options = torch::TensorOptions().dtype(torch::kFloat32).device(logit.device());
 
@@ -152,12 +151,12 @@ namespace maddad
 
         at::Tensor log_prob = torch::full({batch_size, num_frames, num_states}, -inf, float32options);
         at::Tensor best_prev_states = torch::zeros({batch_size, num_frames, num_states}, int64options);
-        at::Tensor binarized_peaks = torch::full({batch_size, num_frames}, 0, int64options);
+        at::Tensor binarized_peaks = torch::full({batch_size, num_frames}, 0, int8ptions);
 
         float *logit_ptr = logit.data_ptr<float>();
         float *log_prob_ptr = log_prob.data_ptr<float>();
         int64_t *best_prev_ptr = best_prev_states.data_ptr<int64_t>();
-        int64_t *binarized_peaks_ptr = binarized_peaks.data_ptr<int64_t>();
+        int8_t *binarized_peaks_ptr = binarized_peaks.data_ptr<int8_t>();
 
         torch::parallel_for(
             0, batch_size, grain_size,
@@ -168,10 +167,19 @@ namespace maddad
                     float *_logit_ptr = logit_ptr + batch_idx * num_frames;
                     float *_log_prob_ptr = log_prob_ptr + batch_idx * num_frames * num_states;
                     int64_t *_best_prev_ptr = best_prev_ptr + batch_idx * num_frames * num_states;
-                    int64_t *_binarized_peaks_ptr = binarized_peaks_ptr + batch_idx * num_frames;
+                    int8_t *_binarized_peaks_ptr = binarized_peaks_ptr + batch_idx * num_frames;
 
                     unbatched_decode(
-                        _logit_ptr, _log_prob_ptr, _best_prev_ptr, _binarized_peaks_ptr, num_frames, num_states, num_fpbs, offsets_ptr, fpbs_ptr, log_transition_prob_ptr);
+                        _logit_ptr,
+                        _log_prob_ptr,
+                        _best_prev_ptr,
+                        _binarized_peaks_ptr,
+                        num_frames,
+                        num_states,
+                        num_fpbs,
+                        offsets_ptr,
+                        fpbs_ptr,
+                        log_transition_prob_ptr);
                 }
             });
 
