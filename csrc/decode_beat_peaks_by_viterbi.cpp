@@ -14,7 +14,7 @@ namespace
         const float *logit_ptr,
         float *log_prob_ptr,
         int64_t *best_prev_ptr,
-        int8_t *binarized_peaks_ptr,
+        int8_t *peaks_ptr,
         int64_t num_frames,
         int64_t num_states,
         int64_t num_fpbs,
@@ -41,7 +41,7 @@ namespace
             for (int64_t fpb_index = 0; fpb_index < num_fpbs; fpb_index++)
             {
                 int64_t offset = offsets_ptr[fpb_index];
-                int64_t fpb_size = fpbs_ptr[fpb_index];
+                int64_t fpb = fpbs_ptr[fpb_index];
 
                 float best_log_prob = -inf;
                 int64_t best_prev_state = 0;
@@ -50,8 +50,8 @@ namespace
                 for (int64_t prev_fpb_index = 0; prev_fpb_index < num_fpbs; prev_fpb_index++)
                 {
                     int64_t prev_offset = offsets_ptr[prev_fpb_index];
-                    int64_t prev_fpb_size = fpbs_ptr[prev_fpb_index];
-                    int64_t prev_state_idx = prev_offset + prev_fpb_size - 1;
+                    int64_t prev_fpb = fpbs_ptr[prev_fpb_index];
+                    int64_t prev_state_idx = prev_offset + prev_fpb - 1;
 
                     float _log_transition_prob = log_transition_prob_ptr[prev_fpb_index * num_fpbs + fpb_index];
                     float prob = _prev_log_prob_ptr[prev_state_idx] + _log_transition_prob;
@@ -67,7 +67,7 @@ namespace
                 _best_prev_ptr[offset] = best_prev_state;
 
                 // other states: frame per beat is not changed
-                for (int64_t _state_index = 1; _state_index < fpb_size; _state_index++)
+                for (int64_t _state_index = 1; _state_index < fpb; _state_index++)
                 {
                     int64_t state_index = offset + _state_index;
                     _log_prob_ptr[state_index] = _prev_log_prob_ptr[state_index - 1] - _logit / 2;
@@ -105,7 +105,7 @@ namespace
 
             if (is_offset)
             {
-                binarized_peaks_ptr[frame_index] = 1;
+                peaks_ptr[frame_index] = 1;
             }
 
             best_state_index = best_prev_ptr[frame_index * num_states + best_state_index];
@@ -129,7 +129,7 @@ namespace maddad
         int64_t num_threads = torch::get_num_threads();
         int64_t grain_size = std::ceil((batch_size - 1.0) / num_threads) + 1;
 
-        torch::TensorOptions int8ptions = torch::TensorOptions().dtype(torch::kInt8).device(logit.device());
+        torch::TensorOptions int8options = torch::TensorOptions().dtype(torch::kInt8).device(logit.device());
         torch::TensorOptions int64options = torch::TensorOptions().dtype(torch::kInt64).device(logit.device());
         torch::TensorOptions float32options = torch::TensorOptions().dtype(torch::kFloat32).device(logit.device());
 
@@ -151,12 +151,12 @@ namespace maddad
 
         at::Tensor log_prob = torch::full({batch_size, num_frames, num_states}, -inf, float32options);
         at::Tensor best_prev_states = torch::zeros({batch_size, num_frames, num_states}, int64options);
-        at::Tensor binarized_peaks = torch::full({batch_size, num_frames}, 0, int8ptions);
+        at::Tensor peaks = torch::full({batch_size, num_frames}, 0, int8options);
 
         float *logit_ptr = logit.data_ptr<float>();
         float *log_prob_ptr = log_prob.data_ptr<float>();
         int64_t *best_prev_ptr = best_prev_states.data_ptr<int64_t>();
-        int8_t *binarized_peaks_ptr = binarized_peaks.data_ptr<int8_t>();
+        int8_t *peaks_ptr = peaks.data_ptr<int8_t>();
 
         torch::parallel_for(
             0, batch_size, grain_size,
@@ -167,13 +167,13 @@ namespace maddad
                     float *_logit_ptr = logit_ptr + batch_idx * num_frames;
                     float *_log_prob_ptr = log_prob_ptr + batch_idx * num_frames * num_states;
                     int64_t *_best_prev_ptr = best_prev_ptr + batch_idx * num_frames * num_states;
-                    int8_t *_binarized_peaks_ptr = binarized_peaks_ptr + batch_idx * num_frames;
+                    int8_t *_peaks_ptr = peaks_ptr + batch_idx * num_frames;
 
                     unbatched_decode(
                         _logit_ptr,
                         _log_prob_ptr,
                         _best_prev_ptr,
-                        _binarized_peaks_ptr,
+                        _peaks_ptr,
                         num_frames,
                         num_states,
                         num_fpbs,
@@ -183,7 +183,7 @@ namespace maddad
                 }
             });
 
-        return binarized_peaks;
+        return peaks;
     }
 } // namespace maddad
 
