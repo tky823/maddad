@@ -25,9 +25,20 @@ namespace
         float inf = std::numeric_limits<float>::infinity();
 
         // frame_index = 0: initial distribution
-        for (int64_t state_index = 0; state_index < num_states; state_index++)
+        for (int64_t fpb_index = 0; fpb_index < num_fpbs; fpb_index++)
         {
-            log_prob_ptr[0 * num_states + state_index] = logit_ptr[0];
+            int64_t offset = offsets_ptr[fpb_index];
+            int64_t fpb = fpbs_ptr[fpb_index];
+
+            // first state
+            log_prob_ptr[offset] = logit_ptr[0] / 2;
+
+            // other states
+            for (int64_t _state_index = 1; _state_index < fpb; _state_index++)
+            {
+                int64_t state_index = offset + _state_index;
+                log_prob_ptr[state_index] = -logit_ptr[0] / 2;
+            }
         }
 
         // frame_index > 0
@@ -67,11 +78,11 @@ namespace
                 _best_prev_ptr[offset] = best_prev_state;
 
                 // other states: frame per beat is not changed
-                for (int64_t _state_index = 1; _state_index < fpb; _state_index++)
+                for (int64_t state_index = 1; state_index < fpb; state_index++)
                 {
-                    int64_t state_index = offset + _state_index;
-                    _log_prob_ptr[state_index] = _prev_log_prob_ptr[state_index - 1] - _logit / 2;
-                    _best_prev_ptr[state_index] = state_index - 1;
+                    int64_t _state_index = offset + state_index;
+                    _log_prob_ptr[_state_index] = _prev_log_prob_ptr[_state_index - 1] - _logit / 2;
+                    _best_prev_ptr[_state_index] = _state_index - 1;
                 }
             }
         }
