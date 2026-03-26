@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Optional
 
 import torch
 import torch.nn as nn
@@ -14,6 +14,7 @@ class DBNBeatDecoder(nn.Module):
         min_bpm: float = 55.0,
         max_bpm: float = 215.0,
         bpms: List[float] = None,
+        threshold: Optional[float] = 0.05,
     ) -> None:
         super().__init__()
 
@@ -21,6 +22,7 @@ class DBNBeatDecoder(nn.Module):
         self.min_bpm = min_bpm
         self.max_bpm = max_bpm
         self.bpms = bpms
+        self.threshold = threshold
 
     def forward(self, logit: torch.Tensor) -> torch.Tensor:
         """Decode logit into beat indices.
@@ -38,4 +40,5 @@ class DBNBeatDecoder(nn.Module):
             min_bpm=self.min_bpm,
             max_bpm=self.max_bpm,
             bpms=self.bpms,
+            threshold=self.threshold,
         )

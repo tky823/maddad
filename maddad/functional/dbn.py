@@ -1,3 +1,4 @@
+import math
 from typing import Optional
 
 import torch
@@ -15,6 +16,7 @@ def decode_beat_peaks_by_viterbi(
     min_bpm: Optional[float] = 55.0,
     max_bpm: Optional[float] = 215.0,
     bpms: Optional[torch.Tensor] = None,
+    threshold: Optional[float] = 0.05,
     weight: float = 100,
 ) -> torch.Tensor:
     """Search for best beat path through state space using a dynamic Bayesian network (DBN) approach.
@@ -26,6 +28,7 @@ def decode_beat_peaks_by_viterbi(
         max_bpm (float, optional): Maximum BPM. Defaults to ``215.0``.
         bpms (torch.Tensor, optional): BPMs to consider. If provided, min_bpm and max_bpm \
             are ignored. Defaults to ``None``.
+        threshold (float, optional): Threshold for beat activation. Defaults to ``0.05``.
         weight (float, optional): Weight for transition probability. Defaults to ``100``.
 
     Returns:
@@ -55,6 +58,11 @@ def decode_beat_peaks_by_viterbi(
 
     ratio = torch.abs(fpbs / fpbs.unsqueeze(dim=-1) - 1)
     log_transition_prob = F.log_softmax(-weight * ratio, dim=-1)
+
+    if threshold is None:
+        pass
+    else:
+        logit = logit.masked_fill(logit < math.log(threshold), -float("inf"))
 
     peaks = _decode_beat_peaks_by_viterbi(
         logit=logit,
