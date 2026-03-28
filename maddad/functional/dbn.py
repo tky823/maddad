@@ -59,23 +59,63 @@ def decode_beat_peaks_by_viterbi(
     ratio = torch.abs(fpbs / fpbs.unsqueeze(dim=-1) - 1)
     log_transition_prob = F.log_softmax(-weight * ratio, dim=-1)
 
+    batch_size, num_frames = logit.size()
+
     if threshold is None:
-        pass
+        offsets = torch.zeros(batch_size, dtype=torch.long)
+        lengths = torch.full((batch_size,), num_frames, dtype=torch.long)
     else:
-        logit = logit.masked_fill(logit < math.log(threshold), -float("inf"))
+        assert 0 < threshold < 1, "Threshold should be between 0 and 1."
+
+        padding_mask = logit < math.log(threshold / (1 - threshold))
+        non_padding_mask = torch.logical_not(padding_mask)
+
+        is_valid_sample = torch.any(non_padding_mask, dim=-1)
+        is_invalid_sample = torch.logical_not(is_valid_sample)
+        num_invalid_samples = torch.sum(is_invalid_sample).item()
+
+        if num_invalid_samples > 0:
+            raise ValueError(
+                f"{num_invalid_samples} samples are invalid out of {batch_size} samples. Set larger threshold than ({threshold}) or None."
+            )
+
+        reversed_non_padding_mask = torch.flip(non_padding_mask, dims=(-1,))
+        offsets = torch.argmax(non_padding_mask.long(), dim=-1)
+        trimmings = torch.argmax(reversed_non_padding_mask.long(), dim=-1)
+
+        trimmed_logit = []
+        lengths = []
+
+        for _logit, offset, trimming in zip(logit, offsets, trimmings):
+            offset = offset.item()
+            trimming = trimming.item()
+            length = _logit.size(0) - offset - trimming
+            _, _logit, _ = torch.split(
+                _logit,
+                [offset, num_frames - offset - trimming, trimming],
+                dim=-1,
+            )
+            trimmed_logit.append(_logit)
+            lengths.append(length)
+
+        logit = nn.utils.rnn.pad_sequence(
+            trimmed_logit, batch_first=True, padding_value=-float("inf")
+        )
+        lengths = torch.tensor(lengths, dtype=torch.long, device=device)
 
     peaks = _decode_beat_peaks_by_viterbi(
         logit=logit,
+        lengths=lengths,
         fpbs=fpbs,
         log_transition_prob=log_transition_prob,
     )
 
     peak_indices = []
 
-    for _peaks in peaks:
+    for _peaks, offset in zip(peaks, offsets):
         _peak_indices = torch.nonzero(_peaks)
         _peak_indices = _peak_indices.squeeze(dim=-1)
-        peak_indices.append(_peak_indices)
+        peak_indices.append(_peak_indices + offset)
 
     peak_indices = nn.utils.rnn.pad_sequence(peak_indices, batch_first=True, padding_value=-1)
     peak_indices = peak_indices.to(device)
@@ -87,6 +127,7 @@ def decode_beat_peaks_by_viterbi(
 def _decode_beat_peaks_by_viterbi(
     logit: torch.Tensor,
     *,
+    lengths: Optional[torch.Tensor] = None,
     fpbs: Optional[torch.LongTensor] = None,
     log_transition_prob: Optional[float] = None,
 ) -> torch.Tensor:
@@ -94,6 +135,8 @@ def _decode_beat_peaks_by_viterbi(
 
     Args:
         logit (torch.Tensor): Logit of shape (batch_size, num_frames).
+        lengths (torch.Tensor, optional): Lengths of each sample in the batch. If not provided, \
+            it is assumed that all samples have the same length. Defaults to ``None``.
         fpbs (torch.Tensor): Frames per beat to assume.
         log_transition_prob (torch.Tensor, optional): Log transition probability of shape (num_fpbs, num_fpbs). \
             If not provided, it will be computed from fpbs based on official implementation.
@@ -102,6 +145,10 @@ def _decode_beat_peaks_by_viterbi(
         torch.Tensor: Section indices of shape (batch_size, num_frames).
 
     """
+    if lengths is None:
+        batch_size, num_frames = logit.size()
+        lengths = torch.full((batch_size,), num_frames, dtype=torch.long)
+
     if fpbs is None:
         raise ValueError("fpbs must be provided.")
 
@@ -110,6 +157,8 @@ def _decode_beat_peaks_by_viterbi(
         ratio = torch.abs(fpbs / fpbs.unsqueeze(dim=-1) - 1)
         log_transition_prob = F.log_softmax(-weight * ratio, dim=-1)
 
-    peaks = torch.ops.maddad.decode_beat_peaks_by_viterbi.default(logit, fpbs, log_transition_prob)
+    peaks = torch.ops.maddad.decode_beat_peaks_by_viterbi.default(
+        logit, lengths, fpbs, log_transition_prob
+    )
 
     return peaks

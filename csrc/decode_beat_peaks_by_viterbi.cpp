@@ -12,8 +12,6 @@ namespace
 {
     void unbatched_decode(
         const float *logit_ptr,
-        float *log_prob_ptr,
-        int64_t *best_prev_ptr,
         int8_t *peaks_ptr,
         int64_t num_frames,
         int64_t num_states,
@@ -23,6 +21,8 @@ namespace
         const float *log_transition_prob_ptr)
     {
         float inf = std::numeric_limits<float>::infinity();
+        int64_t *best_prev_ptr = new int64_t[num_frames * num_states];
+        float *log_prob_ptr = new float[num_frames * num_states];
 
         // frame_index = 0: initial distribution
         for (int64_t fpb_index = 0; fpb_index < num_fpbs; fpb_index++)
@@ -127,9 +127,11 @@ namespace
 namespace maddad
 {
     at::Tensor decode_beat_peaks_by_viterbi(
-        const at::Tensor &logit, const at::Tensor &fpbs, const at::Tensor &log_transition_prob)
+        const at::Tensor &logit, const at::Tensor &lengths, const at::Tensor &fpbs, const at::Tensor &log_transition_prob)
     {
         TORCH_CHECK(logit.dim() == 2, "logit should be 2 dim.");
+        TORCH_CHECK(lengths.dim() == 1, "lengths should be 1 dim.");
+        TORCH_CHECK(lengths.size(0) == logit.size(0), "Batch size of lengths should be same as logit.");
         TORCH_CHECK(fpbs.dim() == 1, "fpbs should be 1 dim.");
         TORCH_CHECK(log_transition_prob.dim() == 2, "log_transition_prob should be 2 dim.");
 
@@ -149,7 +151,6 @@ namespace maddad
         at::Tensor offsets = torch::zeros({num_fpbs}, int64options);
         int64_t *offsets_ptr = offsets.data_ptr<int64_t>();
         int64_t num_states = 0;
-        float inf = std::numeric_limits<float>::infinity();
 
         for (int64_t fpb_index = 0; fpb_index < num_fpbs; fpb_index++)
         {
@@ -160,13 +161,10 @@ namespace maddad
         // transition
         float *log_transition_prob_ptr = log_transition_prob.data_ptr<float>();
 
-        at::Tensor log_prob = torch::full({batch_size, num_frames, num_states}, -inf, float32options);
-        at::Tensor best_prev_states = torch::zeros({batch_size, num_frames, num_states}, int64options);
         at::Tensor peaks = torch::full({batch_size, num_frames}, 0, int8options);
 
         float *logit_ptr = logit.data_ptr<float>();
-        float *log_prob_ptr = log_prob.data_ptr<float>();
-        int64_t *best_prev_ptr = best_prev_states.data_ptr<int64_t>();
+        int64_t *lengths_ptr = lengths.data_ptr<int64_t>();
         int8_t *peaks_ptr = peaks.data_ptr<int8_t>();
 
         torch::parallel_for(
@@ -176,16 +174,13 @@ namespace maddad
                 for (int64_t batch_idx = start; batch_idx < end; batch_idx++)
                 {
                     float *_logit_ptr = logit_ptr + batch_idx * num_frames;
-                    float *_log_prob_ptr = log_prob_ptr + batch_idx * num_frames * num_states;
-                    int64_t *_best_prev_ptr = best_prev_ptr + batch_idx * num_frames * num_states;
+                    int64_t _num_frames = lengths_ptr[batch_idx]; // actual number of frames for sample
                     int8_t *_peaks_ptr = peaks_ptr + batch_idx * num_frames;
 
                     unbatched_decode(
                         _logit_ptr,
-                        _log_prob_ptr,
-                        _best_prev_ptr,
                         _peaks_ptr,
-                        num_frames,
+                        _num_frames,
                         num_states,
                         num_fpbs,
                         offsets_ptr,
@@ -202,7 +197,7 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {}
 
 TORCH_LIBRARY(maddad, m)
 {
-    m.def("decode_beat_peaks_by_viterbi(Tensor logit, Tensor fpbs, Tensor log_transition_prob) -> Tensor");
+    m.def("decode_beat_peaks_by_viterbi(Tensor logit, Tensor lengths, Tensor fpbs, Tensor log_transition_prob) -> Tensor");
 }
 
 TORCH_LIBRARY_IMPL(maddad, CPU, m)
