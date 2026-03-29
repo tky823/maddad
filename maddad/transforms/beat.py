@@ -2,6 +2,7 @@ from typing import List, Optional
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 from ..functional.dbn import decode_beat_peaks_by_viterbi
 
@@ -34,8 +35,12 @@ class DBNBeatDecoder(nn.Module):
             torch.Tensor: Beat indices of shape (batch_size, num_beats).
 
         """
+        beat_log_prob = F.logsigmoid(logit)
+        nonbeat_log_prob = F.logsigmoid(-logit)
+
         return decode_beat_peaks_by_viterbi(
-            logit=logit,
+            beat_log_prob=beat_log_prob,
+            nonbeat_log_prob=nonbeat_log_prob,
             frame_rate=self.frame_rate,
             min_bpm=self.min_bpm,
             max_bpm=self.max_bpm,
