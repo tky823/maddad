@@ -117,7 +117,7 @@ def decode_beat_peaks_by_viterbi(
         nonbeat_log_prob = nn.utils.rnn.pad_sequence(
             trimmed_nonbeat_log_prob, batch_first=True, padding_value=-float("inf")
         )
-        lengths = torch.tensor(lengths, dtype=torch.long, device=device)
+        lengths = torch.tensor(lengths, dtype=torch.long)
 
     peaks = _decode_beat_peaks_by_viterbi(
         beat_log_prob=beat_log_prob,
