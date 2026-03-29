@@ -10,6 +10,11 @@
 
 namespace
 {
+    float log_sigmoid(float input)
+    {
+        return std::min(0.0f, input) - std::log1p(std::exp(-std::abs(input)));
+    }
+
     void unbatched_decode(
         const float *logit_ptr,
         int8_t *peaks_ptr,
@@ -21,8 +26,11 @@ namespace
         const float *log_transition_prob_ptr)
     {
         float inf = std::numeric_limits<float>::infinity();
-        int64_t *best_prev_ptr = new int64_t[num_frames * num_states];
-        float *log_prob_ptr = new float[num_frames * num_states];
+
+        std::vector<int64_t> best_prev(num_frames * num_states, 0);
+        std::vector<float> log_prob(num_frames * num_states, -inf);
+        int64_t *best_prev_ptr = best_prev.data();
+        float *log_prob_ptr = log_prob.data();
 
         // frame_index = 0: initial distribution
         for (int64_t fpb_index = 0; fpb_index < num_fpbs; fpb_index++)
@@ -31,13 +39,13 @@ namespace
             int64_t fpb = fpbs_ptr[fpb_index];
 
             // first state
-            log_prob_ptr[offset] = logit_ptr[0] / 2;
+            log_prob_ptr[offset] = log_sigmoid(logit_ptr[0]);
 
             // other states
             for (int64_t _state_index = 1; _state_index < fpb; _state_index++)
             {
                 int64_t state_index = offset + _state_index;
-                log_prob_ptr[state_index] = -logit_ptr[0] / 2;
+                log_prob_ptr[state_index] = log_sigmoid(-logit_ptr[0]);
             }
         }
 
@@ -74,14 +82,14 @@ namespace
                     }
                 }
 
-                _log_prob_ptr[offset] = best_log_prob + _logit / 2;
+                _log_prob_ptr[offset] = best_log_prob + log_sigmoid(_logit);
                 _best_prev_ptr[offset] = best_prev_state;
 
                 // other states: frame per beat is not changed
                 for (int64_t state_index = 1; state_index < fpb; state_index++)
                 {
                     int64_t _state_index = offset + state_index;
-                    _log_prob_ptr[_state_index] = _prev_log_prob_ptr[_state_index - 1] - _logit / 2;
+                    _log_prob_ptr[_state_index] = _prev_log_prob_ptr[_state_index - 1] + log_sigmoid(-_logit);
                     _best_prev_ptr[_state_index] = _state_index - 1;
                 }
             }
@@ -134,6 +142,11 @@ namespace maddad
         TORCH_CHECK(lengths.size(0) == logit.size(0), "Batch size of lengths should be same as logit.");
         TORCH_CHECK(fpbs.dim() == 1, "fpbs should be 1 dim.");
         TORCH_CHECK(log_transition_prob.dim() == 2, "log_transition_prob should be 2 dim.");
+
+        TORCH_CHECK(logit.is_contiguous(), "logit must be contiguous.");
+        TORCH_CHECK(lengths.is_contiguous(), "lengths must be contiguous.");
+        TORCH_CHECK(fpbs.is_contiguous(), "fpbs must be contiguous.");
+        TORCH_CHECK(log_transition_prob.is_contiguous(), "log_transition_prob must be contiguous.");
 
         int64_t batch_size = logit.size(0);
         int64_t num_frames = logit.size(1);
@@ -195,7 +208,7 @@ namespace maddad
 
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {}
 
-TORCH_LIBRARY(maddad, m)
+TORCH_LIBRARY_FRAGMENT(maddad, m)
 {
     m.def("decode_beat_peaks_by_viterbi(Tensor logit, Tensor lengths, Tensor fpbs, Tensor log_transition_prob) -> Tensor");
 }
