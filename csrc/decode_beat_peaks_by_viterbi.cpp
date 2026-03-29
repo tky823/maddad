@@ -70,11 +70,11 @@ namespace
                     int64_t prev_state_idx = prev_offset + prev_fpb - 1;
 
                     float _log_transition_prob = log_transition_prob_ptr[prev_fpb_index * num_fpbs + fpb_index];
-                    float score = _prev_score_ptr[prev_state_idx] + _log_transition_prob;
+                    float _score = _prev_score_ptr[prev_state_idx] + _log_transition_prob;
 
-                    if (score > best_score)
+                    if (_score > best_score)
                     {
-                        best_score = score;
+                        best_score = _score;
                         best_prev_state = prev_state_idx;
                     }
                 }
@@ -144,7 +144,7 @@ namespace maddad
         TORCH_CHECK(log_transition_prob.dim() == 2, "log_transition_prob should be 2 dim.");
 
         TORCH_CHECK(beat_log_prob.is_contiguous(), "beat_log_prob must be contiguous.");
-        TORCH_CHECK(nonbeat_log_prob.is_contiguous(), "beat_log_prob must be contiguous.");
+        TORCH_CHECK(nonbeat_log_prob.is_contiguous(), "nonbeat_log_prob must be contiguous.");
         TORCH_CHECK(lengths.is_contiguous(), "lengths must be contiguous.");
         TORCH_CHECK(fpbs.is_contiguous(), "fpbs must be contiguous.");
         TORCH_CHECK(log_transition_prob.is_contiguous(), "log_transition_prob must be contiguous.");
