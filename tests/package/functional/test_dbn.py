@@ -1,7 +1,10 @@
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
-from maddad.functional.dbn import decode_beat_peaks_by_viterbi
+from maddad.functional.dbn import (
+    decode_beat_peaks_by_viterbi,
+)
 
 
 def test_decode_beat_peaks_by_viterbi() -> None:
@@ -13,7 +16,11 @@ def test_decode_beat_peaks_by_viterbi() -> None:
     threshold = 0.8
 
     logit = torch.randn(batch_size, num_frames)
-    peaks = decode_beat_peaks_by_viterbi(logit, frame_rate=frame_rate, threshold=threshold)
+    beat_log_prob = F.logsigmoid(logit)
+    nonbeat_log_prob = F.logsigmoid(-logit)
+    peaks = decode_beat_peaks_by_viterbi(
+        beat_log_prob, nonbeat_log_prob, frame_rate=frame_rate, threshold=threshold
+    )
 
     assert peaks.dim() == 2
     assert peaks.size(0) == batch_size
@@ -21,8 +28,13 @@ def test_decode_beat_peaks_by_viterbi() -> None:
     unbatched_peaks = []
 
     for _logit in logit:
+        _beat_log_prob = F.logsigmoid(_logit)
+        _nonbeat_log_prob = F.logsigmoid(-_logit)
         _peaks = decode_beat_peaks_by_viterbi(
-            _logit.unsqueeze(dim=0), frame_rate=frame_rate, threshold=threshold
+            _beat_log_prob.unsqueeze(dim=0),
+            _nonbeat_log_prob.unsqueeze(dim=0),
+            frame_rate=frame_rate,
+            threshold=threshold,
         )
         unbatched_peaks.append(_peaks.squeeze(dim=0))
 

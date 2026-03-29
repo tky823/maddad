@@ -10,7 +10,8 @@ from .._C import decode_beat_peaks_by_viterbi as decode_beat_peaks_by_viterbi_cp
 
 @torch.no_grad()
 def decode_beat_peaks_by_viterbi(
-    logit: torch.Tensor,
+    beat_log_prob: torch.Tensor,
+    nonbeat_log_prob: torch.Tensor,
     frame_rate: int,
     *,
     min_bpm: Optional[float] = 55.0,
@@ -35,8 +36,9 @@ def decode_beat_peaks_by_viterbi(
         torch.Tensor: Section indices of shape (batch_size, num_peaks). ``-1`` indicates padding.
 
     """
-    device = logit.device
-    logit = logit.cpu()
+    device = beat_log_prob.device
+    beat_log_prob = beat_log_prob.cpu()
+    nonbeat_log_prob = nonbeat_log_prob.cpu()
 
     if bpms is None:
         if min_bpm is None:
@@ -59,7 +61,7 @@ def decode_beat_peaks_by_viterbi(
     ratio = torch.abs(fpbs / fpbs.unsqueeze(dim=-1) - 1)
     log_transition_prob = F.log_softmax(-weight * ratio, dim=-1)
 
-    batch_size, num_frames = logit.size()
+    batch_size, num_frames = beat_log_prob.size()
 
     if threshold is None:
         offsets = torch.zeros(batch_size, dtype=torch.long)
@@ -67,8 +69,10 @@ def decode_beat_peaks_by_viterbi(
     else:
         assert 0 < threshold < 1, "Threshold should be between 0 and 1."
 
-        padding_mask = logit < math.log(threshold / (1 - threshold))
+        padding_mask = beat_log_prob < math.log(threshold)
         non_padding_mask = torch.logical_not(padding_mask)
+        beat_log_prob = beat_log_prob.masked_fill(padding_mask, -float("inf"))
+        nonbeat_log_prob = nonbeat_log_prob.masked_fill(padding_mask, 0)
 
         is_valid_sample = torch.any(non_padding_mask, dim=-1)
         is_invalid_sample = torch.logical_not(is_valid_sample)
@@ -87,17 +91,22 @@ def decode_beat_peaks_by_viterbi(
         trimmed_nonbeat_log_prob = []
         lengths = []
 
-        for _logit, offset, trimming in zip(logit, offsets, trimmings):
+        for _beat_log_prob, _nonbeat_log_prob, offset, trimming in zip(
+            beat_log_prob, nonbeat_log_prob, offsets, trimmings
+        ):
             offset = offset.item()
             trimming = trimming.item()
-            length = _logit.size(0) - offset - trimming
-            _, _logit, _ = torch.split(
-                _logit,
+            length = _beat_log_prob.size(0) - offset - trimming
+            _, _beat_log_prob, _ = torch.split(
+                _beat_log_prob,
                 [offset, num_frames - offset - trimming, trimming],
                 dim=-1,
             )
-            _beat_log_prob = F.logsigmoid(_logit)
-            _nonbeat_log_prob = F.logsigmoid(-_logit)
+            _, _nonbeat_log_prob, _ = torch.split(
+                _nonbeat_log_prob,
+                [offset, num_frames - offset - trimming, trimming],
+                dim=-1,
+            )
             trimmed_beat_log_prob.append(_beat_log_prob)
             trimmed_nonbeat_log_prob.append(_nonbeat_log_prob)
             lengths.append(length)
