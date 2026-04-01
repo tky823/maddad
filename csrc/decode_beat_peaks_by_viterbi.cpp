@@ -94,14 +94,14 @@ namespace
 
         // back track
         int64_t best_state_index = 0;
-        float best_final_prob = -inf;
+        float best_score = -inf;
         float *_last_score_ptr = score_ptr + (num_frames - 1) * num_states;
 
         for (int64_t state_index = 0; state_index < num_states; state_index++)
         {
-            if (_last_score_ptr[state_index] > best_final_prob)
+            if (_last_score_ptr[state_index] > best_score)
             {
-                best_final_prob = _last_score_ptr[state_index];
+                best_score = _last_score_ptr[state_index];
                 best_state_index = state_index;
             }
         }
