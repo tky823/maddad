@@ -59,7 +59,7 @@ def test_decode_beat_and_downbeat_peaks_by_viterbi() -> None:
     downbeat_logit = torch.randn(batch_size, num_frames)
     beat_log_prob = F.logsigmoid(beat_logit)
     downbeat_log_prob = F.logsigmoid(downbeat_logit)
-    nonbeat_log_prob = -torch.max(beat_log_prob, downbeat_log_prob)
+    nonbeat_log_prob = F.logsigmoid(-torch.max(beat_logit, downbeat_logit))
 
     peaks, beats = decode_beat_and_downbeat_peaks_by_viterbi(
         beat_log_prob,
