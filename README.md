@@ -23,12 +23,14 @@ pip install -e .
 From file:
 
 ```python
->>> from maddad.pipelines.beat import BeatThisPipeline
+>>> from maddad.pipelines.beat_and_downbeat import BeatThisPipeline
 >>> audio_path = "audio.mp3"
 >>> decoder = "minimal"  # "minimal" or "dbn"
 >>> pipeline = BeatThisPipeline.build_from_pretrained("official_beatthis", decoder=decoder, device="cpu")
 >>> output = pipeline(audio_path)
 >>> output["beat"]
+tensor([ 0.0600,  0.8400, ..., 38.2000])
+>>> output["downbeat"]
 tensor([ 0.0600,  0.8400, ..., 38.2000])
 ```
 
@@ -36,7 +38,7 @@ From tensor:
 
 ```python
 >>> import torchaudio
->>> from maddad.pipelines.beat import BeatThisPipeline
+>>> from maddad.pipelines.beat_and_downbeat import BeatThisPipeline
 >>> audio_path = "audio.mp3"
 >>> decoder = "minimal"  # "minimal" or "dbn"
 >>> waveform, sample_rate = torchaudio.load(audio_path)
@@ -44,6 +46,8 @@ From tensor:
 >>> pipeline = BeatThisPipeline.build_from_pretrained("official_beatthis", decoder=decoder, device="cpu")
 >>> output = pipeline(waveform, sample_rate=sample_rate)
 >>> output["beat"]
+tensor([ 0.0600,  0.8400, ..., 38.2000])
+>>> output["downbeat"]
 tensor([ 0.0600,  0.8400, ..., 38.2000])
 ```
 
