@@ -158,7 +158,6 @@ namespace maddad
 
         torch::TensorOptions int8options = torch::TensorOptions().dtype(torch::kInt8).device(beat_log_prob.device());
         torch::TensorOptions int64options = torch::TensorOptions().dtype(torch::kInt64).device(beat_log_prob.device());
-        torch::TensorOptions float32options = torch::TensorOptions().dtype(torch::kFloat32).device(beat_log_prob.device());
 
         int64_t *fpbs_ptr = fpbs.data_ptr<int64_t>();
 
