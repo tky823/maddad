@@ -22,9 +22,9 @@ def overwrite_pyproject_toml(path: str, torch_version: str) -> None:
 
         with open(path) as f_in, open(temp_path, mode="w") as f_out:
             for line in f_in:
-                if specified_torch in line:
+                if unspecified_torch in line:
                     line = line.replace(unspecified_torch, specified_torch)
-                elif specified_torchaudio in line:
+                elif unspecified_torchaudio in line:
                     line = line.replace(unspecified_torchaudio, specified_torchaudio)
 
                 f_out.write(line)
