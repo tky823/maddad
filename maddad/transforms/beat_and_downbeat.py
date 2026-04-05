@@ -35,7 +35,9 @@ class DBNBeatAndDownbeatDecoder(nn.Module):
             downbeat_logit (torch.Tensor): Logit tensor for downbeats of shape (batch_size, num_frames).
 
         Returns:
-            torch.Tensor: Beat indices of shape (batch_size, num_beats).
+            tuple: Tuple of tensors containing:
+            - torch.LongTensor: Section indices of shape (batch_size, num_peaks). ``-1`` indicates padding.
+            - torch.LongTensor: Beat indices of shape (batch_size, num_peaks). ``1`` corresponds to downbeat. ``-1`` indicates padding.
 
         """
         beat_log_prob = F.logsigmoid(beat_logit)
