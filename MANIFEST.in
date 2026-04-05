@@ -1,0 +1,6 @@
+exclude .gitignore
+recursive-include csrc *.h *.cpp
+recursive-include maddad *.yaml
+prune .github
+prune tests
+prune docs
