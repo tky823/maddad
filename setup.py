@@ -108,7 +108,15 @@ class BuildExtension(_BuildExtension):
             "sources": [
                 "csrc/decode_beat_peaks_by_viterbi.cpp",
             ],
-        },
+        }
+    )
+    cpp_extensions.append(
+        {
+            "name": "maddad._C.decode_beat_and_downbeat_peaks_by_viterbi",
+            "sources": [
+                "csrc/decode_beat_and_downbeat_peaks_by_viterbi.cpp",
+            ],
+        }
     )
 
     def run(self) -> None:
@@ -126,7 +134,14 @@ class BuildExtension(_BuildExtension):
         else:
             compiler = get_cxx_compiler()
 
-        if ext.name == "maddad._C.decode_beat_peaks_by_viterbi" and not IS_WINDOWS:
+        if (
+            ext.name
+            in [
+                "maddad._C.decode_beat_peaks_by_viterbi",
+                "maddad._C.decode_beat_and_downbeat_peaks_by_viterbi",
+            ]
+            and not IS_WINDOWS
+        ):
             # TODO: support Windows
             which = subprocess.check_output(["which", compiler], stderr=subprocess.STDOUT)
             compiler = os.path.realpath(which.decode(*SUBPROCESS_DECODE_ARGS).strip())
