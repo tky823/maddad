@@ -480,10 +480,10 @@ class RotaryPositionalMultiheadAttention(_RotaryPositionalMultiheadAttention):
             self.register_parameter("in_proj_bias", None)
 
         self.gate = nn.Linear(
-            embed_dim, num_heads, bias=True, **factory_kwargs
+            self.qdim, num_heads, bias=True, **factory_kwargs
         )  # bias is always True
         self.out_proj = NonDynamicallyQuantizableLinear(
-            embed_dim, embed_dim, bias=bias, **factory_kwargs
+            embed_dim, self.qdim, bias=bias, **factory_kwargs
         )
 
         if add_bias_kv:

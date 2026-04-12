@@ -23,6 +23,7 @@ namespace
         int64_t num_states,
         int64_t num_fpbs,
         int64_t meter,
+        const float beat_region,
         const int64_t *offsets_ptr,
         const int64_t *fpbs_ptr,
         const float *log_transition_prob_ptr)
@@ -100,11 +101,25 @@ namespace
                     _best_prev_ptr[offset] = best_prev_state;
 
                     // other states: frame per beat is not changed
-                    for (int64_t _state_index = 1; _state_index < fpb; _state_index++)
+                    for (int64_t state_index = 1; state_index < fpb; state_index++)
                     {
-                        int64_t state_index = offset + _state_index;
-                        _score_ptr[state_index] = _prev_score_ptr[state_index - 1] + _nonbeat_log_prob;
-                        _best_prev_ptr[state_index] = state_index - 1;
+                        int64_t _state_index = offset + state_index;
+                        if (static_cast<float>(state_index) / fpb < beat_region)
+                        {
+                            if (beat == 0)
+                            {
+                                _score_ptr[_state_index] = _prev_score_ptr[_state_index - 1] + _downbeat_log_prob;
+                            }
+                            else
+                            {
+                                _score_ptr[_state_index] = _prev_score_ptr[_state_index - 1] + _beat_log_prob;
+                            }
+                        }
+                        else
+                        {
+                            _score_ptr[_state_index] = _prev_score_ptr[_state_index - 1] + _nonbeat_log_prob;
+                        }
+                        _best_prev_ptr[_state_index] = _state_index - 1;
                     }
                 }
             }
@@ -159,7 +174,14 @@ namespace
 namespace maddad
 {
     std::tuple<at::Tensor, at::Tensor> decode_beat_and_downbeat_peaks_by_viterbi(
-        const at::Tensor &beat_log_prob, const at::Tensor &downbeat_log_prob, const at::Tensor &nonbeat_log_prob, const at::Tensor &lengths, const at::Tensor &fpbs, const int8_t meter, const at::Tensor &log_transition_prob)
+        const at::Tensor &beat_log_prob,
+        const at::Tensor &downbeat_log_prob,
+        const at::Tensor &nonbeat_log_prob,
+        const at::Tensor &lengths,
+        const at::Tensor &fpbs,
+        const int8_t meter,
+        const double beat_region,
+        const at::Tensor &log_transition_prob)
     {
         TORCH_CHECK(beat_log_prob.dim() == 2, "beat_log_prob should be 2 dim.");
         TORCH_CHECK(downbeat_log_prob.dim() == 2, "downbeat_log_prob should be 2 dim.");
@@ -249,6 +271,7 @@ namespace maddad
                         num_states,
                         num_fpbs,
                         meter,
+                        static_cast<float>(beat_region),
                         offsets_ptr,
                         fpbs_ptr,
                         log_transition_prob_ptr);
@@ -263,7 +286,7 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {}
 
 TORCH_LIBRARY_FRAGMENT(maddad, m)
 {
-    m.def("decode_beat_and_downbeat_peaks_by_viterbi(Tensor beat_log_prob, Tensor downbeat_log_prob, Tensor nonbeat_log_prob, Tensor lengths, Tensor fpbs, int meter, Tensor log_transition_prob) -> (Tensor, Tensor)");
+    m.def("decode_beat_and_downbeat_peaks_by_viterbi(Tensor beat_log_prob, Tensor downbeat_log_prob, Tensor nonbeat_log_prob, Tensor lengths, Tensor fpbs, int meter, float beat_region, Tensor log_transition_prob) -> (Tensor, Tensor)");
 }
 
 TORCH_LIBRARY_IMPL(maddad, CPU, m)
