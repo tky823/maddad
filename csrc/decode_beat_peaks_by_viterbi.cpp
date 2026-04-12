@@ -17,6 +17,7 @@ namespace
         int64_t num_frames,
         int64_t num_states,
         int64_t num_fpbs,
+        const float beat_region,
         const int64_t *offsets_ptr,
         const int64_t *fpbs_ptr,
         const float *log_transition_prob_ptr)
@@ -86,7 +87,14 @@ namespace
                 for (int64_t state_index = 1; state_index < fpb; state_index++)
                 {
                     int64_t _state_index = offset + state_index;
-                    _score_ptr[_state_index] = _prev_score_ptr[_state_index - 1] + _nonbeat_log_prob;
+                    if (static_cast<float>(state_index) / fpb < beat_region)
+                    {
+                        _score_ptr[_state_index] = _prev_score_ptr[_state_index - 1] + _beat_log_prob;
+                    }
+                    else
+                    {
+                        _score_ptr[_state_index] = _prev_score_ptr[_state_index - 1] + _nonbeat_log_prob;
+                    }
                     _best_prev_ptr[_state_index] = _state_index - 1;
                 }
             }
@@ -132,7 +140,12 @@ namespace
 namespace maddad
 {
     at::Tensor decode_beat_peaks_by_viterbi(
-        const at::Tensor &beat_log_prob, const at::Tensor &nonbeat_log_prob, const at::Tensor &lengths, const at::Tensor &fpbs, const at::Tensor &log_transition_prob)
+        const at::Tensor &beat_log_prob,
+        const at::Tensor &nonbeat_log_prob,
+        const at::Tensor &lengths,
+        const at::Tensor &fpbs,
+        const double beat_region,
+        const at::Tensor &log_transition_prob)
     {
         TORCH_CHECK(beat_log_prob.dim() == 2, "beat_log_prob should be 2 dim.");
         TORCH_CHECK(nonbeat_log_prob.dim() == 2, "nonbeat_log_prob should be 2 dim.");
@@ -199,6 +212,7 @@ namespace maddad
                         _num_frames,
                         num_states,
                         num_fpbs,
+                        static_cast<float>(beat_region),
                         offsets_ptr,
                         fpbs_ptr,
                         log_transition_prob_ptr);
@@ -213,7 +227,7 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {}
 
 TORCH_LIBRARY_FRAGMENT(maddad, m)
 {
-    m.def("decode_beat_peaks_by_viterbi(Tensor beat_log_prob, Tensor nonbeat_log_prob, Tensor lengths, Tensor fpbs, Tensor log_transition_prob) -> Tensor");
+    m.def("decode_beat_peaks_by_viterbi(Tensor beat_log_prob, Tensor nonbeat_log_prob, Tensor lengths, Tensor fpbs, float beat_region, Tensor log_transition_prob) -> Tensor");
 }
 
 TORCH_LIBRARY_IMPL(maddad, CPU, m)

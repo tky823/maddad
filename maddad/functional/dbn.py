@@ -20,6 +20,7 @@ def decode_beat_peaks_by_viterbi(
     min_bpm: Optional[float] = 55.0,
     max_bpm: Optional[float] = 215.0,
     bpms: Optional[torch.Tensor] = None,
+    beat_region: float = 0.0625,
     threshold: Optional[float] = 0.05,
     weight: float = 100,
 ) -> torch.LongTensor:
@@ -75,8 +76,6 @@ def decode_beat_peaks_by_viterbi(
 
         padding_mask = beat_log_prob < math.log(threshold)
         non_padding_mask = torch.logical_not(padding_mask)
-        beat_log_prob = beat_log_prob.masked_fill(padding_mask, -float("inf"))
-        nonbeat_log_prob = nonbeat_log_prob.masked_fill(padding_mask, 0)
 
         is_valid_sample = torch.any(non_padding_mask, dim=-1)
         is_invalid_sample = torch.logical_not(is_valid_sample)
@@ -121,6 +120,7 @@ def decode_beat_peaks_by_viterbi(
         nonbeat_log_prob=nonbeat_log_prob,
         lengths=lengths,
         fpbs=fpbs,
+        beat_region=beat_region,
         log_transition_prob=log_transition_prob,
     )
 
@@ -148,6 +148,7 @@ def decode_beat_and_downbeat_peaks_by_viterbi(
     max_bpm: Optional[float] = 215.0,
     bpms: Optional[torch.Tensor] = None,
     meters: List[int] = [3, 4],
+    beat_region: float = 0.0625,
     threshold: Optional[float] = 0.05,
     weight: float = 100,
 ) -> Tuple[torch.LongTensor, torch.LongTensor]:
@@ -206,10 +207,10 @@ def decode_beat_and_downbeat_peaks_by_viterbi(
     else:
         assert 0 < threshold < 1, "Threshold should be between 0 and 1."
 
-        padding_mask = beat_log_prob < math.log(threshold)
+        beat_padding_mask = beat_log_prob < math.log(threshold)
+        downbeat_padding_mask = downbeat_log_prob < math.log(threshold)
+        padding_mask = beat_padding_mask & downbeat_padding_mask
         non_padding_mask = torch.logical_not(padding_mask)
-        beat_log_prob = beat_log_prob.masked_fill(padding_mask, -float("inf"))
-        nonbeat_log_prob = nonbeat_log_prob.masked_fill(padding_mask, 0)
 
         is_valid_sample = torch.any(non_padding_mask, dim=-1)
         is_invalid_sample = torch.logical_not(is_valid_sample)
@@ -262,6 +263,7 @@ def decode_beat_and_downbeat_peaks_by_viterbi(
         lengths=lengths,
         fpbs=fpbs,
         meters=meters,
+        beat_region=beat_region,
         log_transition_prob=log_transition_prob,
     )
 
@@ -292,6 +294,7 @@ def _decode_beat_peaks_by_viterbi(
     *,
     lengths: Optional[torch.Tensor] = None,
     fpbs: Optional[torch.LongTensor] = None,
+    beat_region: float = 0.0625,
     log_transition_prob: Optional[float] = None,
 ) -> torch.LongTensor:
     """Search for best beat path through the state space using a dynamic Bayesian network (DBN) approach.
@@ -323,7 +326,7 @@ def _decode_beat_peaks_by_viterbi(
         log_transition_prob = F.log_softmax(-weight * ratio, dim=-1)
 
     peaks = torch.ops.maddad.decode_beat_peaks_by_viterbi.default(
-        beat_log_prob, nonbeat_log_prob, lengths, fpbs, log_transition_prob
+        beat_log_prob, nonbeat_log_prob, lengths, fpbs, beat_region, log_transition_prob
     )
 
     return peaks
@@ -338,6 +341,7 @@ def _decode_beat_and_downbeat_peaks_by_viterbi(
     lengths: Optional[torch.Tensor] = None,
     fpbs: Optional[torch.LongTensor] = None,
     meters: List[int] = [3, 4],
+    beat_region: float = 0.0625,
     log_transition_prob: Optional[float] = None,
 ) -> torch.LongTensor:
     """Search for best beat path through the state space using a dynamic Bayesian network (DBN) approach.
@@ -379,6 +383,7 @@ def _decode_beat_and_downbeat_peaks_by_viterbi(
             lengths,
             fpbs,
             meter,
+            beat_region,
             log_transition_prob,
         )
         peaks.append(_peaks)
