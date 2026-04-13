@@ -39,7 +39,14 @@ namespace
                 int64_t fpb = fpbs_ptr[fpb_index];
 
                 // first state
-                score_ptr[offset] = beat_log_prob_ptr[0];
+                if (beat == 0)
+                {
+                    score_ptr[offset] = downbeat_log_prob_ptr[0];
+                }
+                else
+                {
+                    score_ptr[offset] = beat_log_prob_ptr[0];
+                }
 
                 // other states
                 for (int64_t _state_index = 1; _state_index < fpb; _state_index++)
@@ -139,17 +146,25 @@ namespace
             }
         }
 
+        int64_t max_prob_frame_index = -1;
+        float max_prob = -inf;
+
+        int8_t beat = 0;
+
         for (int64_t frame_index = num_frames - 1; frame_index >= 0; frame_index--)
         {
-            int8_t beat = 0;
             bool is_offset = false;
+            int64_t _state_index = fpbs_ptr[num_fpbs - 1]; // set large value by default
+            int64_t fpb = -1;
 
-            for (beat = 0; beat < meter; beat++)
+            for (beat = meter - 1; beat >= 0; beat--)
             {
-                for (int64_t fpb_index = 0; fpb_index < num_fpbs; fpb_index++)
+                for (int64_t fpb_index = num_fpbs - 1; fpb_index >= 0; fpb_index--)
                 {
-                    if (best_state_index == offsets_ptr[beat * num_fpbs + fpb_index])
+                    if (best_state_index >= offsets_ptr[beat * num_fpbs + fpb_index])
                     {
+                        fpb = fpbs_ptr[fpb_index];
+                        _state_index = best_state_index - offsets_ptr[beat * num_fpbs + fpb_index];
                         is_offset = true;
                         break;
                     }
@@ -161,12 +176,42 @@ namespace
                 }
             }
 
-            if (is_offset)
+            if (static_cast<float>(_state_index) / fpb < beat_region)
             {
-                peaks_ptr[frame_index] = beat + 1;
+                float _log_prob;
+                if (beat == 0)
+                {
+                    _log_prob = downbeat_log_prob_ptr[frame_index];
+                }
+                else
+                {
+                    _log_prob = beat_log_prob_ptr[frame_index];
+                }
+
+                if (_log_prob > max_prob)
+                {
+                    max_prob = _log_prob;
+                    max_prob_frame_index = frame_index;
+                }
+            }
+
+            if (_state_index == 0)
+            {
+                if (max_prob_frame_index != -1)
+                {
+                    peaks_ptr[max_prob_frame_index] = beat + 1;
+                }
+
+                max_prob_frame_index = -1;
+                max_prob = -inf;
             }
 
             best_state_index = best_prev_ptr[frame_index * num_states + best_state_index];
+        }
+
+        if (max_prob_frame_index != -1)
+        {
+            peaks_ptr[max_prob_frame_index] = beat + 1;
         }
     }
 } // namespace (anonymous)

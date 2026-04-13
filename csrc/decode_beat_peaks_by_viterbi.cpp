@@ -114,25 +114,51 @@ namespace
             }
         }
 
+        int64_t max_prob_frame_index = -1;
+        float max_prob = -inf;
+
         for (int64_t frame_index = num_frames - 1; frame_index >= 0; frame_index--)
         {
-            bool is_offset = false;
+            int64_t _state_index = fpbs_ptr[num_fpbs - 1]; // set large value by default
+            int64_t fpb = -1;
 
-            for (int64_t fpb_index = 0; fpb_index < num_fpbs; fpb_index++)
+            for (int64_t fpb_index = num_fpbs - 1; fpb_index >= 0; fpb_index--)
             {
-                if (best_state_index == offsets_ptr[fpb_index])
+                if (best_state_index >= offsets_ptr[fpb_index])
                 {
-                    is_offset = true;
+                    fpb = fpbs_ptr[fpb_index];
+                    _state_index = best_state_index - offsets_ptr[fpb_index];
                     break;
                 }
             }
 
-            if (is_offset)
+            if (static_cast<float>(_state_index) / fpb < beat_region)
             {
-                peaks_ptr[frame_index] = 1;
+                float _log_prob = beat_log_prob_ptr[frame_index];
+                if (_log_prob > max_prob)
+                {
+                    max_prob = _log_prob;
+                    max_prob_frame_index = frame_index;
+                }
+            }
+
+            if (_state_index == 0)
+            {
+                if (max_prob_frame_index != -1)
+                {
+                    peaks_ptr[max_prob_frame_index] = 1;
+                }
+
+                max_prob_frame_index = -1;
+                max_prob = -inf;
             }
 
             best_state_index = best_prev_ptr[frame_index * num_states + best_state_index];
+        }
+
+        if (max_prob_frame_index != -1)
+        {
+            peaks_ptr[max_prob_frame_index] = 1;
         }
     }
 } // namespace (anonymous)
