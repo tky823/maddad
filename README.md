@@ -29,9 +29,9 @@ From file:
 >>> pipeline = BeatThisPipeline.build_from_pretrained("official_beatthis", decoder=decoder, device="cpu")
 >>> output = pipeline(audio_path)
 >>> output["beat"]
-tensor([ 0.0600,  0.8200, ..., 40.6600])
+tensor([ 0.0600,  0.8400, ..., 40.7000])
 >>> output["downbeat"]
-tensor([ 0.0600,  3.1000, ..., 39.8200])
+tensor([ 0.0600,  3.1200, ..., 39.8200])
 ```
 
 From tensor:
@@ -46,9 +46,9 @@ From tensor:
 >>> pipeline = BeatThisPipeline.build_from_pretrained("official_beatthis", decoder=decoder, device="cpu")
 >>> output = pipeline(waveform, sample_rate=sample_rate)
 >>> output["beat"]
-tensor([ 0.0600,  0.8200, ..., 40.6600])
+tensor([ 0.0600,  0.8400, ..., 40.7000])
 >>> output["downbeat"]
-tensor([ 0.0600,  3.1000, ..., 39.8200])
+tensor([ 0.0600,  3.1200, ..., 39.8200])
 ```
 
 ## License
